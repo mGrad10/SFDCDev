@@ -1,17 +1,15 @@
-@RestResource(UrlMapping='/CaseRestResource/*')
-global with sharing class CaseRestResource {
+global with sharing class CaseRestResource implements IRestResource {
 
     private static final String CASE_STATUS_NEW = 'New';
 
     /**
-     * Parses JSON request string and creates Cases in Salesforce
-     * @return JSON string containing SaveResults of Case inserts
+     * This implementation of the doPost() method 
+     * Parses JSON from the request body and creates Cases in Salesforce
+     * @return List of strings containing success/fail messages
      */
-    @HttpPost
-    global static List<String> insertCases() {
+    public static List<String> doPost(RestRequest request) {
 
         //Get the request body
-        RestRequest request = RestContext.request;
         String requestBody = request.requestBody.toString();
 
         //Deseralize the request JSON into a wrapper
@@ -19,17 +17,8 @@ global with sharing class CaseRestResource {
 
         //For each SingleCase, create a new Case record and add to a list
         List<Case> casesToInsert = new List<Case>();
-    
         for(SingleCase theSingleCase : caseRequest.singleCaseList){
-            Case theCase = new Case(Subject = theSingleCase.subject, 
-                                    Description= theSingleCase.description, 
-                                    Status = CASE_STATUS_NEW, 
-                                    Origin = theSingleCase.origin,
-                                    SuppliedName = theSingleCase.name, 
-                                    SuppliedPhone = theSingleCase.phone, 
-                                    SuppliedEmail = theSingleCase.email);
-
-            casesToInsert.add(theCase);
+            casesToInsert.add(initCaseRecords(theSingleCase));
         }
 
         //Enforce object-level access and FLS
@@ -37,26 +26,41 @@ global with sharing class CaseRestResource {
 
         List<String> responseStringList = new List<String>();
 
-        try{
-            //Insert Cases, add success/failures to list for return
-            List<Database.SaveResult> caseInsertResults = Database.insert(casesToInsert, false);
-            for(Database.SaveResult theSaveResult: caseInsertResults){
-                if(theSaveResult.isSuccess()){
-                    responseStringList.add('Case created successfully! Id = ' + theSaveResult.getId());
-                }else{
-                    responseStringList.add('Case creation failed: ' + theSaveResult.getErrors());
-                }
+        //Insert Cases, add success/failures to list for return
+        List<Database.SaveResult> caseInsertResults = Database.insert(casesToInsert, false);
+        for(Database.SaveResult theSaveResult: caseInsertResults){
+            if(theSaveResult.isSuccess()){
+                responseStringList.add('Case created successfully! Id = ' + theSaveResult.getId());
+            }else{
+                responseStringList.add('Case creation failed: ' + theSaveResult.getErrors());
             }
-        }catch(Exception e){
-            responseStringList.add('An error occurred:' + e.getMessage());
-        } 
+        }
+        
         return responseStringList;
+    }
+
+    /**
+     * Helper method to init Case record from SingleCase wrapper
+     * @param singleCase - the SingleCase wrapper
+     * @return instantiated Case
+     */
+    private static Case initCaseRecords(SingleCase theSingleCase){
+
+        Case theCase = new Case(Subject = theSingleCase.subject, 
+                                    Description= theSingleCase.description, 
+                                    Status = CASE_STATUS_NEW, 
+                                    Origin = theSingleCase.origin,
+                                    SuppliedName = theSingleCase.name, 
+                                    SuppliedPhone = theSingleCase.phone, 
+                                    SuppliedEmail = theSingleCase.email);
+
+        return theCase;
     }
 
     /**
      * Inner class used to represent single Case records to be inserted
      */
-    global class SingleCase{
+    private class SingleCase{
         private String subject;
         private String description;
         private String origin;
@@ -68,7 +72,7 @@ global with sharing class CaseRestResource {
     /**
      * Inner class used to represent Request with list of Case records to be inserted
      */
-    global class CaseRequest{
+    private class CaseRequest{
         List<SingleCase> singleCaseList;
     }
 }
