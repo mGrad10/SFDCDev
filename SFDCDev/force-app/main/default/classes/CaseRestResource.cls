@@ -8,7 +8,7 @@ global with sharing class CaseRestResource {
      * @return JSON string containing SaveResults of Case inserts
      */
     @HttpPost
-    global static String insertCases() {
+    global static List<String> insertCases() {
 
         //Get the request body
         RestRequest request = RestContext.request;
@@ -35,15 +35,24 @@ global with sharing class CaseRestResource {
         //Enforce object-level access and FLS
         casesToInsert = (List<Case>)Security.stripInaccessible(AccessType.CREATABLE, casesToInsert).getRecords();
 
+        List<String> responseStringList = new List<String>();
+
         try{
-            //Insert Cases and return SaveResults
+            //Insert Cases, add success/failures to list for return
             List<Database.SaveResult> caseInsertResults = Database.insert(casesToInsert, false);
-            return JSON.serialize(caseInsertResults);
+            for(Database.SaveResult theSaveResult: caseInsertResults){
+                if(theSaveResult.isSuccess()){
+                    responseStringList.add('Case created successfully! Id = ' + theSaveResult.getId());
+                }else{
+                    responseStringList.add('Case creation failed: ' + theSaveResult.getErrors());
+                }
+            }
         }catch(Exception e){
-            return 'Error creating Case records:' + e.getMessage();
-        }           
+            responseStringList.add('An error occurred:' + e.getMessage());
+        } 
+        return responseStringList;
     }
-    
+
     /**
      * Inner class used to represent single Case records to be inserted
      */
